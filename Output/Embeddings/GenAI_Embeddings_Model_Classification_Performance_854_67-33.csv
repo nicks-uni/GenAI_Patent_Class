@@ -1,0 +1,4 @@
+Name,Type,Share,True-Positives,False-Negatives,False-Positives,True-Negatives,Accuracy,AUC,Precision,Recall,F1
+Logistic Regression,Embeddings,0.817,0.751,0.705,0.249,0.295,0.742,0.653,0.751,0.919,0.826
+Support Vector Classifier (RBF),Embeddings,0.737,0.774,0.631,0.226,0.369,0.737,0.677,0.774,0.854,0.812
+Random Forest,Embeddings,0.847,0.739,0.725,0.261,0.275,0.737,0.636,0.739,0.937,0.826

@@ -1,0 +1,5 @@
+Name,Type,Share,True-Positives,False-Negatives,False-Positives,True-Negatives,Accuracy,AUC,Precision,Recall,F1
+SciBERT,Transformer,0.32,0.812,0.963,0.188,0.037,0.914,0.913,0.812,0.911,0.859
+XLNet,Transformer,0.315,0.81,0.956,0.19,0.044,0.91,0.905,0.81,0.895,0.85
+BERT,Transformer,0.336,0.785,0.968,0.215,0.032,0.906,0.912,0.785,0.925,0.849
+PatentSBERTa,Transformer,0.273,0.734,0.884,0.266,0.116,0.843,0.801,0.734,0.704,0.719
