@@ -1,6 +1,3 @@
-Name,Type,Share,True-Positives,False-Negatives,False-Positives,True-Negatives,Accuracy,AUC,Precision,Recall,F1
-Ensemble,Bag of Words,0.161,0.776,0.979,0.224,0.021,0.946,0.918,0.776,0.877,0.824
-Random Forest,Bag of Words,0.159,0.776,0.977,0.224,0.023,0.945,0.912,0.776,0.867,0.819
-Support Vector Classifier (RBF),Bag of Words,0.154,0.768,0.972,0.232,0.028,0.94,0.895,0.768,0.832,0.799
-Logistic Regression,Bag of Words,0.179,0.73,0.985,0.27,0.015,0.94,0.93,0.73,0.916,0.812
-Naive Bayes,Bag of Words,0.228,0.615,0.997,0.385,0.003,0.91,0.94,0.615,0.982,0.757
+version https://git-lfs.github.com/spec/v1
+oid sha256:3db5afe1a097bc61b86bdcbaedcfad102dc587096f42fd5f483cb9a4b4c5f768
+size 555
