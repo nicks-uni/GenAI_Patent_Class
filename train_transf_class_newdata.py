@@ -43,7 +43,7 @@ mkdir "Figures"
 # 9. Kopieren Sie Ihre Patentdaten in das "Training Data"-Verzeichnis
 
 # 10. Führen Sie Ihr Skript aus
-    python train_transf_class_newdata_V4.py
+    python train_transf_class_newdata.py
 '''
 # -------------------------------------------------------------
 # Import Required Packages
