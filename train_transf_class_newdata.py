@@ -1,6 +1,7 @@
-r'''
+r"""
 Nötige Terminal-Befehle um den Code ausführen zu können:
 
+# TODO: Python Version angeben, ich habe 3.12.3 genutzt (Gerrit), denn das läuft in meinem Umfeld auf Palma
 # 1. Navigieren Sie zu Ihrem Projektverzeichnis
 cd Pfad/zu/Ihrem/Projekt
 
@@ -12,20 +13,11 @@ python -m venv venv
 # 3. Aktualisieren Sie pip
 pip install --upgrade pip
 
+# TODO: Hab hier mal eine einfachere Version gemacht
 # 4. Installieren Sie die erforderlichen Pakete
-pip install simpletransformers
-pip install transformers
-pip install torch
-pip install pandas
-pip install numpy
-pip install scikit-learn
-pip install tqdm
-pip install matplotlib
-pip install seaborn
-pip install spacy
-pip install textblob
-pip install nltk
+pip install -r requirements-xlnet
 
+# TODO: Das meiste hiervon kaunn raus
 # 5. Laden Sie das spacy-Sprachmodell herunter
 python -m spacy download en_core_web_sm
 
@@ -44,23 +36,22 @@ mkdir "Figures"
 
 # 10. Führen Sie Ihr Skript aus
     python train_transf_class_newdata.py
-'''
+"""
+
 # -------------------------------------------------------------
 # Import Required Packages
 # -------------------------------------------------------------
-import os
 import logging
+import os
+import time
 import warnings
-import time  # Import the time module
+from pathlib import Path
 
 import pandas as pd
-import numpy as np
-from tqdm import tqdm
-import matplotlib.pyplot as plt
+import torch
 
 # For Transformer Models
 from simpletransformers.classification import ClassificationModel
-import torch
 
 # Suppress warnings and set logging level to ERROR to reduce output clutter
 warnings.filterwarnings("ignore")
@@ -70,6 +61,14 @@ transformers_logger.setLevel(logging.ERROR)
 
 # Check if CUDA is available (for GPU acceleration)
 use_cuda = torch.cuda.is_available()
+
+# Enviorment Variablen
+work_dir = os.getenv("WORK") or "."
+
+# Base Paths, neccesary for Palma-II
+home_base_path = Path(".")
+work_base_path = Path(work_dir)
+
 
 # -------------------------------------------------------------
 # Define the PatentClassifier Class (XLNet Only)
@@ -109,6 +108,7 @@ class PatentClassifier:
             # Load CSV file with patent data
             self.data = pd.read_csv(self.data_path, delimiter=self.delimiter)
             print(f"Successfully loaded training data from {self.data_path}")
+            print(self.data)
 
             # Categorize: if 'Finales Resultat' >= 1, set label_genai to 1, else 0
             self.data["label_genai"] = (self.data["Finales Resultat"] >= 1).astype(int)
@@ -137,7 +137,9 @@ class PatentClassifier:
 
             # Filter patents without AI content (actual == 0)
             anti_seed = anti_seed[anti_seed["actual"] == 0]
-            print(f"Filtered anti-seed data to include only non-AI patents (actual == 0).")
+            print(
+                "Filtered anti-seed data to include only non-AI patents (actual == 0)."
+            )
 
             # Limit the anti-seed dataset to n patents
             anti_seed = anti_seed.iloc[:n]
@@ -189,7 +191,9 @@ class PatentClassifier:
             # Calculate the distribution of label_genai
             label_counts = self.data["label_genai"].value_counts(normalize=True) * 100
             self.total_entries = len(self.data)
-            self.total_ratio = f"{label_counts.get(1, 0):.0f}-{label_counts.get(0, 0):.0f}"
+            self.total_ratio = (
+                f"{label_counts.get(1, 0):.0f}-{label_counts.get(0, 0):.0f}"
+            )
 
             # Output the distribution and total count
             print(f"Share of entries with '1': {label_counts.get(1, 0):.2f}%")
@@ -208,6 +212,21 @@ class PatentClassifier:
         Train the XLNet model on the entire dataset.
         """
         try:
+            output_dir = work_base_path / "Models" / f"{self.model_name}_model"
+
+            # Using the local model if it exists
+            if output_dir.exists() and output_dir.is_dir():
+                print("Models already exists, skipping training")
+                print(
+                    f"If you want to retrain the model, delete the folder {output_dir}"
+                )
+
+                self.model = ClassificationModel(
+                    self.model_type, output_dir, use_cuda=self.use_cuda
+                )
+
+                return
+
             # Prepare training DataFrame
             train_df = pd.DataFrame({"text": self.texts, "labels": self.labels})
             print("Prepared training DataFrame.")
@@ -221,7 +240,7 @@ class PatentClassifier:
                 "do_lower_case": False,  # XLNet is cased
                 "silent": False,
                 "no_cache": True,
-                "no_save": False,         # Enable saving the model
+                "no_save": False,  # Enable saving the model
                 "save_model_every_epoch": False,
                 "save_eval_checkpoints": False,
                 "evaluate_during_training": False,
@@ -249,11 +268,12 @@ class PatentClassifier:
 
             # Convert time to minutes and seconds
             training_minutes, training_seconds = divmod(training_time, 60)
-            print(f"Time taken for training: {int(training_minutes)} minutes {training_seconds:.2f} seconds")
+            print(
+                f"Time taken for training: {int(training_minutes)} minutes {training_seconds:.2f} seconds"
+            )
 
             # Save the trained model
-            os.makedirs('Models', exist_ok=True)
-            output_dir = f"Models/{self.model_name}_model"
+            os.makedirs("Models", exist_ok=True)
             self.model.save_model(output_dir=output_dir)
             print(f"Model saved to {output_dir}")
 
@@ -274,25 +294,35 @@ class PatentClassifier:
             # Attempt to read the CSV file with the specified delimiter
             try:
                 new_data = pd.read_csv(new_data_path, delimiter=delimiter)
-                print(f"Successfully loaded new data from {new_data_path} with delimiter '{delimiter}'")
+                print(
+                    f"Successfully loaded new data from {new_data_path} with delimiter '{delimiter}'"
+                )
             except pd.errors.ParserError as e:
                 print(f"Error parsing the CSV file with delimiter '{delimiter}': {e}")
                 # Try with comma delimiter
-                new_data = pd.read_csv(new_data_path, delimiter=',')
-                print(f"Successfully loaded new data from {new_data_path} with delimiter ','")
+                new_data = pd.read_csv(new_data_path, delimiter=",")
+                print(
+                    f"Successfully loaded new data from {new_data_path} with delimiter ','"
+                )
 
             # Ensure required columns exist
             required_columns = ["patent_id", "patent_abstract"]
-            missing_columns = [col for col in required_columns if col not in new_data.columns]
+            missing_columns = [
+                col for col in required_columns if col not in new_data.columns
+            ]
             if missing_columns:
                 raise ValueError(f"Missing required columns: {missing_columns}")
 
             # Remove entries where 'patent_abstract' is missing or not a string
             initial_entries = len(new_data)
-            new_data = new_data.dropna(subset=['patent_abstract'])
-            new_data = new_data[new_data['patent_abstract'].apply(lambda x: isinstance(x, str))]
+            new_data = new_data.dropna(subset=["patent_abstract"])
+            new_data = new_data[
+                new_data["patent_abstract"].apply(lambda x: isinstance(x, str))
+            ]
             filtered_entries = len(new_data)
-            print(f"Filtered out {initial_entries - filtered_entries} entries due to missing or invalid abstracts.")
+            print(
+                f"Filtered out {initial_entries - filtered_entries} entries due to missing or invalid abstracts."
+            )
 
             # Select the first `num_entries` rows using .iloc
             new_data = new_data.iloc[:num_entries]
@@ -321,17 +351,24 @@ class PatentClassifier:
 
             # Convert time to minutes and seconds
             prediction_minutes, prediction_seconds = divmod(prediction_time, 60)
-            print(f"Time taken for prediction: {int(prediction_minutes)} minutes {prediction_seconds:.2f} seconds")
+            print(
+                f"Time taken for prediction: {int(prediction_minutes)} minutes {prediction_seconds:.2f} seconds"
+            )
 
             # Handle probabilities
-            y_pred_proba = torch.softmax(torch.tensor(raw_outputs), dim=1)[:, 1].tolist()
+            y_pred_proba = torch.softmax(torch.tensor(raw_outputs), dim=1)[
+                :, 1
+            ].tolist()
 
             # Store predictions
             predictions_df[self.model_name] = predictions
             predictions_df[f"{self.model_name}_prob"] = y_pred_proba
 
             # Save predictions to CSV
-            output_path = f"Output/Predictions_{self.model_name}_on_New_Data_{total_new_entries}.csv"
+            output_path = (
+                work_base_path
+                / "Output/Predictions_{self.model_name}_on_New_Data_{total_new_entries}.csv"
+            )
             predictions_df.to_csv(output_path, index=False)
             print(f"Predictions on new data saved to {output_path}")
 
@@ -348,38 +385,36 @@ class PatentClassifier:
             print(f"An unexpected error occurred during prediction: {ex}")
             raise
 
+
 # -------------------------------------------------------------
 # Main Execution
 # -------------------------------------------------------------
 if __name__ == "__main__":
-    try:
-        # Ensure necessary directories exist
-        os.makedirs("Figures", exist_ok=True)
-        os.makedirs("Output", exist_ok=True)
+    # Paths to data files
+    data_path = (
+        work_base_path
+        / "Training Data"
+        / "20240819_WIPO Patents GenAI US matched_1-1000.csv"
+    )
+    anti_seed_path = work_base_path / "Training Data" / "4K Patents - AI 20p.csv"
 
-        # Paths to data files
-        data_path = os.path.join(
-            "Training Data", "20240819_WIPO Patents GenAI US matched_1-1000.csv"
-        )
-        delimiter = ";"  # Adjust based on your main data's delimiter
+    delimiter = ";"  # Adjust based on your main data's delimiter
 
-        anti_seed_path = os.path.join("Training Data", "4K Patents - AI 20p.csv")
+    # Initialize the classifier
+    classifier = PatentClassifier(data_path, anti_seed_path, delimiter)
 
-        # Initialize the classifier
-        classifier = PatentClassifier(data_path, anti_seed_path, delimiter)
+    # Load and prepare data
+    classifier.load_data()
+    classifier.load_anti_seed(n=3146)  # Adjust 'n' as needed
+    classifier.prepare_data()
 
-        # Load and prepare data
-        classifier.load_data()
-        classifier.load_anti_seed(n=3146)  # Adjust 'n' as needed
-        classifier.prepare_data()
+    # Train the model on the entire dataset
+    # Training is skpped, if a local model already exists
+    classifier.train_model()
 
-        # Train the model on the entire dataset
-        classifier.train_model()
-
-        # Predict on new data using the trained model
-        new_data_path = os.path.join("Training Data", "chunk_Applications_Grants_Combined.csv")
-        new_data_delimiter = ","  # Adjust based on your new data's actual delimiter
-        classifier.predict_on_new_data(new_data_path, new_data_delimiter, num_entries=10000)
-
-    except Exception as e:
-        print(f"An error occurred during execution: {e}")
+    # Predict on new data using the trained model
+    new_data_path = (
+        work_base_path / "Training Data" / "chunk_Applications_Grants_Combined.csv"
+    )
+    new_data_delimiter = ","  # Adjust based on your new data's actual delimiter
+    classifier.predict_on_new_data(new_data_path, new_data_delimiter, num_entries=10000)
