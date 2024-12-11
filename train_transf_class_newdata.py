@@ -41,8 +41,10 @@ mkdir "Figures"
 # -------------------------------------------------------------
 # Import Required Packages
 # -------------------------------------------------------------
+import argparse
 import logging
 import os
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -281,14 +283,17 @@ class PatentClassifier:
             print(f"An unexpected error occurred during model training: {e}")
             raise
 
-    def predict_on_new_data(self, new_data_path, delimiter, num_entries):
+    def predict_on_new_data(
+        self, new_data_path, index, delimiter=";", num_entries=None
+    ):
         """
         Predict on new data using the trained model.
 
         Parameters:
         - new_data_path: Path to the new data CSV file.
-        - delimiter: Delimiter used in the new data CSV file.
-        - num_entries: Number of entries to predict on (default is 100).
+        - index: Index of Partition.
+        - delimiter: Delimiter used in the new data CSV file (default is ";").
+        - num_entries: Number of entries to predict on. None results in num_entries=length of file.
         """
         try:
             # Attempt to read the CSV file with the specified delimiter
@@ -323,6 +328,10 @@ class PatentClassifier:
             print(
                 f"Filtered out {initial_entries - filtered_entries} entries due to missing or invalid abstracts."
             )
+
+            # Set num_entries if not given
+            if num_entries is None:
+                num_entries = len(new_data.index)
 
             # Select the first `num_entries` rows using .iloc
             new_data = new_data.iloc[:num_entries]
@@ -366,10 +375,10 @@ class PatentClassifier:
 
             # Save predictions to CSV
             output_path = (
-                work_base_path
-                / "Output/Predictions_{self.model_name}_on_New_Data_{total_new_entries}.csv"
+                work_base_path / f"Output/{self.model_name}" / f"partition_{index}.csv"
             )
-            predictions_df.to_csv(output_path, index=False)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            predictions_df.to_csv(output_path, index=False, sep=";")
             print(f"Predictions on new data saved to {output_path}")
 
         except FileNotFoundError:
@@ -390,6 +399,25 @@ class PatentClassifier:
 # Main Execution
 # -------------------------------------------------------------
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process a dataset file.")
+    parser.add_argument(
+        "--input-file", type=str, required=True, help="Path to the input CSV file."
+    )
+    parser.add_argument(
+        "--partition-number",
+        type=int,
+        required=False,
+        default=0,
+        help="Optional partition number for identification.",
+    )
+    args = parser.parse_args()
+    input_file: Path = work_base_path / args.input_file
+    partition = args.partition_number
+
+    if not input_file.exists():
+        print(f"File {input_file} does not exists.")
+        sys.exit(1)
+
     # Paths to data files
     data_path = (
         work_base_path
@@ -413,8 +441,4 @@ if __name__ == "__main__":
     classifier.train_model()
 
     # Predict on new data using the trained model
-    new_data_path = (
-        work_base_path / "Training Data" / "chunk_Applications_Grants_Combined.csv"
-    )
-    new_data_delimiter = ","  # Adjust based on your new data's actual delimiter
-    classifier.predict_on_new_data(new_data_path, new_data_delimiter, num_entries=10000)
+    classifier.predict_on_new_data(input_file, index=partition, num_entries=100)
