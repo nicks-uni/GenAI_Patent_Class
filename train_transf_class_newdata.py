@@ -215,9 +215,14 @@ class PatentClassifier:
         """
         try:
             output_dir = work_base_path / "Models" / f"{self.model_name}_model"
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             # Using the local model if it exists
-            if output_dir.exists() and output_dir.is_dir():
+            if (
+                output_dir.exists()
+                and output_dir.is_dir()
+                and any(output_dir.iterdir())
+            ):
                 print("Models already exists, skipping training")
                 print(
                     f"If you want to retrain the model, delete the folder {output_dir}"
@@ -246,6 +251,7 @@ class PatentClassifier:
                 "save_model_every_epoch": False,
                 "save_eval_checkpoints": False,
                 "evaluate_during_training": False,
+                "output_dir": str(output_dir),  # Ensure output_dir is set correctly
             }
 
             print(f"Initializing the {self.model_name} model for training.")
@@ -273,11 +279,6 @@ class PatentClassifier:
             print(
                 f"Time taken for training: {int(training_minutes)} minutes {training_seconds:.2f} seconds"
             )
-
-            # Save the trained model
-            os.makedirs("Models", exist_ok=True)
-            self.model.save_model(output_dir=output_dir)
-            print(f"Model saved to {output_dir}")
 
         except Exception as e:
             print(f"An unexpected error occurred during model training: {e}")
