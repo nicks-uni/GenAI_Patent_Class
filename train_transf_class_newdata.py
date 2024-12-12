@@ -69,7 +69,7 @@ work_dir = os.getenv("WORK") or "."
 
 # Base Paths, neccesary for Palma-II
 home_base_path = Path(".")
-work_base_path = Path(work_dir)
+work_base_path = Path(work_dir) / "nick_data"
 
 
 # -------------------------------------------------------------
@@ -376,7 +376,10 @@ class PatentClassifier:
 
             # Save predictions to CSV
             output_path = (
-                work_base_path / f"Output/{self.model_name}" / f"partition_{index}.csv"
+                work_base_path
+                / "Ootput"
+                / f"{self.model_name}"
+                / f"partition_{index}.csv"
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             predictions_df.to_csv(output_path, index=False, sep=";")
