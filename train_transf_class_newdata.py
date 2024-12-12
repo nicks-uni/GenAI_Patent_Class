@@ -294,109 +294,66 @@ class PatentClassifier:
         - new_data_path: Path to the new data CSV file.
         - index: Index of Partition.
         - delimiter: Delimiter used in the new data CSV file (default is ";").
-        - num_entries: Number of entries to predict on. None results in num_entries=length of file.
+        - num_entries: Number of entries to predict on. If None, all entries are used.
         """
-        try:
-            # Attempt to read the CSV file with the specified delimiter
-            try:
-                new_data = pd.read_csv(new_data_path, delimiter=delimiter)
-                print(
-                    f"Successfully loaded new data from {new_data_path} with delimiter '{delimiter}'"
-                )
-            except pd.errors.ParserError as e:
-                print(f"Error parsing the CSV file with delimiter '{delimiter}': {e}")
-                # Try with comma delimiter
-                new_data = pd.read_csv(new_data_path, delimiter=",")
-                print(
-                    f"Successfully loaded new data from {new_data_path} with delimiter ','"
-                )
 
-            # Ensure required columns exist
-            required_columns = ["patent_id", "patent_abstract"]
-            missing_columns = [
-                col for col in required_columns if col not in new_data.columns
-            ]
-            if missing_columns:
-                raise ValueError(f"Missing required columns: {missing_columns}")
+        # Step 1: Load the CSV file
+        print(f"Loading data from {new_data_path}...")
+        data = pd.read_csv(new_data_path, delimiter=delimiter, dtype=str)
+        print(f"Data loaded successfully with delimiter '{delimiter}'.")
 
-            # Remove entries where 'patent_abstract' is missing or not a string
-            initial_entries = len(new_data)
-            new_data = new_data.dropna(subset=["patent_abstract"])
-            new_data = new_data[
-                new_data["patent_abstract"].apply(lambda x: isinstance(x, str))
-            ]
-            filtered_entries = len(new_data)
-            print(
-                f"Filtered out {initial_entries - filtered_entries} entries due to missing or invalid abstracts."
-            )
+        # Step 2: Validate required columns
+        required_columns = ["patent_id", "patent_abstract"]
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
 
-            # Set num_entries if not given
-            if num_entries is None:
-                num_entries = len(new_data.index)
+        # Step 3: Filter invalid abstracts
+        initial_count = len(data)
+        data = data.dropna(subset=["patent_abstract"])
+        filtered_count = len(data)
+        print(f"Filtered {initial_count - filtered_count} invalid entries.")
 
-            # Select the first `num_entries` rows using .iloc
-            new_data = new_data.iloc[:num_entries]
-            print(f"Selected the first {num_entries} entries for prediction.")
+        # Step 4: Limit to specified number of entries
+        if num_entries is None or num_entries > len(data):
+            num_entries = len(data)
+        data = data.iloc[:num_entries]
+        print(f"Using the first {num_entries} entries for prediction.")
 
-            # Extract IDs and abstracts
-            new_IDs = new_data["patent_id"].values
-            new_texts = new_data["patent_abstract"].tolist()
-            total_new_entries = len(new_data)
-            print(f"Number of entries after filtering: {total_new_entries}")
+        # Step 5: Extract IDs and abstracts
+        ids = data["patent_id"].values
+        texts = data["patent_abstract"].tolist()
+        print(f"Prepared {len(texts)} entries for prediction.")
 
-            # Proceed to prediction
-            # Prepare a DataFrame to store predictions
-            predictions_df = pd.DataFrame({"id": new_IDs})
+        # Step 6: Prediction
+        print(f"Starting prediction using model {self.model_name}...")
+        start_time = time.perf_counter()
+        predictions, raw_outputs = self.model.predict(texts)
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(
+            f"Prediction completed in {elapsed_time // 60:.0f} minutes and {elapsed_time % 60:.2f} seconds."
+        )
 
-            # Record the start time
-            start_time = time.perf_counter()
+        # Step 7: Calculate probabilities
+        probabilities = torch.softmax(torch.tensor(raw_outputs), dim=1)[:, 1].tolist()
+        formatted_probabilities = [f"{prob:.10f}" for prob in probabilities]
 
-            # Predict with the trained model
-            print(f"Predicting new data with {self.model_name}...")
-            predictions, raw_outputs = self.model.predict(new_texts)
+        # Step 8: Prepare results DataFrame
+        predictions_df = pd.DataFrame(
+            {
+                "id": ids,
+                self.model_name: predictions,
+                f"{self.model_name}_prob": formatted_probabilities,
+            }
+        )
 
-            # Record the end time and calculate the elapsed time
-            end_time = time.perf_counter()
-            prediction_time = end_time - start_time
-
-            # Convert time to minutes and seconds
-            prediction_minutes, prediction_seconds = divmod(prediction_time, 60)
-            print(
-                f"Time taken for prediction: {int(prediction_minutes)} minutes {prediction_seconds:.2f} seconds"
-            )
-
-            # Handle probabilities
-            y_pred_proba = torch.softmax(torch.tensor(raw_outputs), dim=1)[
-                :, 1
-            ].tolist()
-
-            # Store predictions
-            predictions_df[self.model_name] = predictions
-            predictions_df[f"{self.model_name}_prob"] = y_pred_proba
-
-            # Save predictions to CSV
-            output_path = (
-                work_base_path
-                / "Ootput"
-                / f"{self.model_name}"
-                / f"partition_{index}.csv"
-            )
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            predictions_df.to_csv(output_path, index=False, sep=";")
-            print(f"Predictions on new data saved to {output_path}")
-
-        except FileNotFoundError:
-            print(f"Error: The file {new_data_path} does not exist.")
-            raise
-        except pd.errors.ParserError as e:
-            print(f"Error parsing the CSV file: {e}")
-            raise
-        except ValueError as ve:
-            print(f"Value Error: {ve}")
-            raise
-        except Exception as ex:
-            print(f"An unexpected error occurred during prediction: {ex}")
-            raise
+        # Step 9: Save predictions to CSV
+        output_dir = Path(work_base_path) / "Output" / f"{self.model_name}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_file = output_dir / f"partition_{index}.csv"
+        predictions_df.to_csv(output_file, index=False, sep=";")
+        print(f"Predictions saved to {output_file}")
 
 
 # -------------------------------------------------------------
@@ -445,4 +402,4 @@ if __name__ == "__main__":
     classifier.train_model()
 
     # Predict on new data using the trained model
-    classifier.predict_on_new_data(input_file, index=partition, num_entries=100)
+    classifier.predict_on_new_data(input_file, index=partition)
