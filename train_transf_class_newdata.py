@@ -76,17 +76,15 @@ work_base_path = Path(work_dir) / "nick_data"
 # Define the PatentClassifier Class (XLNet Only)
 # -------------------------------------------------------------
 class PatentClassifier:
-    def __init__(self, data_path, anti_seed_path, delimiter):
+    def __init__(self, data_path, delimiter):
         """
         Initialize the PatentClassifier with data paths and configuration.
 
         Parameters:
         - data_path: Path to the training data CSV file.
-        - anti_seed_path: Path to the anti-seed data CSV file.
         - delimiter: Delimiter used in the CSV files.
         """
         self.data_path = data_path
-        self.anti_seed_path = anti_seed_path
         self.delimiter = delimiter
         self.data = None
         self.IDs = None
@@ -125,7 +123,7 @@ class PatentClassifier:
             print(f"An unexpected error occurred while loading data: {e}")
             raise
 
-    def load_anti_seed(self, n):
+    def load_anti_seed(self, path):
         """
         Load and integrate the anti-seed data to balance the dataset.
 
@@ -134,27 +132,26 @@ class PatentClassifier:
         """
         try:
             # Load AI patents to create an anti-seed set
-            anti_seed = pd.read_csv(self.anti_seed_path, delimiter=",")
-            print(f"Successfully loaded anti-seed data from {self.anti_seed_path}")
+            anti_seed = pd.read_csv(path, delimiter=",")
+            print(f"Successfully loaded anti-seed data from {path}")
 
             # Filter patents without AI content (actual == 0)
-            anti_seed = anti_seed[anti_seed["actual"] == 0]
+            if "actual" in anti_seed.columns:
+                anti_seed = anti_seed[anti_seed["actual"] == 0]
+                print(f"Removed something frmom {path}")
             print(
                 "Filtered anti-seed data to include only non-AI patents (actual == 0)."
             )
 
-            # Limit the anti-seed dataset to n patents
-            anti_seed = anti_seed.iloc[:n]
-            print(f"Selected the first {n} entries from the anti-seed dataset.")
-
             # Adjust columns in the anti-seed set to combine with training data
             anti_seed["label_genai"] = 0  # All anti-seed patents are defined as non-AI
 
-            # Unify column names
-            anti_seed = anti_seed.rename(
-                columns={"app number": "patent_id", "abstract": "patent_abstract"}
-            )
-            print("Renamed columns in anti-seed data for consistency.")
+            # Unify column names conditionally
+            if "app number" in anti_seed.columns:
+                anti_seed = anti_seed.rename(columns={"app number": "patent_id"})
+
+            if "abstract" in anti_seed.columns:
+                anti_seed = anti_seed.rename(columns={"abstract": "patent_abstract"})
 
             # Select relevant columns for merging
             anti_seed = anti_seed[["patent_id", "patent_abstract", "label_genai"]]
@@ -385,16 +382,20 @@ if __name__ == "__main__":
         / "Training Data"
         / "20240819_WIPO Patents GenAI US matched_1-1000.csv"
     )
-    anti_seed_path = work_base_path / "Training Data" / "4K Patents - AI 20p.csv"
+    anti_seed_path_1 = work_base_path / "Training Data" / "4K Patents - AI 20p.csv"
+    anti_seed_path_2 = (
+        work_base_path / "Training Data" / "20241214_AntiSeedSet_Flowers.csv"
+    )
 
     delimiter = ";"  # Adjust based on your main data's delimiter
 
     # Initialize the classifier
-    classifier = PatentClassifier(data_path, anti_seed_path, delimiter)
+    classifier = PatentClassifier(data_path, delimiter)
 
     # Load and prepare data
     classifier.load_data()
-    classifier.load_anti_seed(n=3146)  # Adjust 'n' as needed
+    classifier.load_anti_seed(anti_seed_path_1)
+    classifier.load_anti_seed(anti_seed_path_2)
     classifier.prepare_data()
 
     # Train the model on the entire dataset
